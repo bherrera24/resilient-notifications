@@ -1,0 +1,6 @@
+# Local Netlify folder
+.netlify
+netlify.toml
+deno.lock
+dist
+node_modules
