@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const NotificationManager_1 = require("../Application/NotificationManager");
 const InMemoryRateLimiter_1 = require("../Infrastructure/Services/InMemoryRateLimiter");
 const NotificationType_1 = require("../Domain/Entities/NotificationType");
+const InMemoryCache_1 = require("../Infrastructure/Cache/InMemoryCache");
 class FailingProvider {
     async send() {
         throw new Error("Provider failed");
@@ -20,7 +21,7 @@ describe("NotificationManager Failover", () => {
     it("should fallback to next provider when one fails", async () => {
         const failing = new FailingProvider();
         const success = new SuccessfulProvider();
-        const manager = new NotificationManager_1.NotificationManager([failing, success], new InMemoryRateLimiter_1.InMemoryRateLimiter(10, 10));
+        const manager = new NotificationManager_1.NotificationManager([failing, success], new InMemoryRateLimiter_1.InMemoryRateLimiter(10, 10), new InMemoryCache_1.InMemoryCache());
         await manager.send({
             userId: "user1",
             message: "Test failover",

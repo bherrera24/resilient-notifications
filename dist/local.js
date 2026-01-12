@@ -5,11 +5,23 @@ const SendGridMockProvider_1 = require("./Infrastructure/Providers/SendGridMockP
 const TwilioMockProvider_1 = require("./Infrastructure/Providers/TwilioMockProvider");
 const InMemoryRateLimiter_1 = require("./Infrastructure/Services/InMemoryRateLimiter");
 const NotificationType_1 = require("./Domain/Entities/NotificationType");
-const manager = new NotificationManager_1.NotificationManager([new SendGridMockProvider_1.SendGridMockProvider(), new TwilioMockProvider_1.TwilioMockProvider()], new InMemoryRateLimiter_1.InMemoryRateLimiter(2, 10));
+const InMemoryCache_1 = require("./Infrastructure/Cache/InMemoryCache");
+const manager = new NotificationManager_1.NotificationManager([new SendGridMockProvider_1.SendGridMockProvider(), new TwilioMockProvider_1.TwilioMockProvider()], new InMemoryRateLimiter_1.InMemoryRateLimiter(2, 10), new InMemoryCache_1.InMemoryCache());
+// (async () => {
+//   await manager.send({
+//     userId: "user1",
+//     message: "Test local",
+//     type: NotificationType.TRANSACTIONAL,
+//   });
+// })();
 (async () => {
-    await manager.send({
-        userId: 'user1',
-        message: 'Test local',
-        type: NotificationType_1.NotificationType.TRANSACTIONAL
-    });
+    const notification = {
+        userId: "user1",
+        message: "Test local",
+        type: NotificationType_1.NotificationType.TRANSACTIONAL,
+    };
+    console.log("---- FIRST SEND ----");
+    await manager.send(notification);
+    console.log("---- SECOND SEND ----");
+    await manager.send(notification);
 })();

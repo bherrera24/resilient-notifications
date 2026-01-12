@@ -2,6 +2,7 @@ import { NotificationManager } from "../Application/NotificationManager";
 import { INotificationProvider } from "../Domain/Interfaces/INotificationProvider";
 import { InMemoryRateLimiter } from "../Infrastructure/Services/InMemoryRateLimiter";
 import { NotificationType } from "../Domain/Entities/NotificationType";
+import { InMemoryCache } from "../Infrastructure/Cache/InMemoryCache";
 
 class FailingProvider implements INotificationProvider {
   async send(): Promise<void> {
@@ -24,7 +25,8 @@ describe("NotificationManager Failover", () => {
 
     const manager = new NotificationManager(
       [failing, success],
-      new InMemoryRateLimiter(10, 10)
+      new InMemoryRateLimiter(10, 10),
+      new InMemoryCache()
     );
 
     await manager.send({
