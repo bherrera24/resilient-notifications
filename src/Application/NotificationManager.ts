@@ -10,6 +10,7 @@ export class NotificationManager {
 
   async send(notification: Notification): Promise<void> {
     if (!this.rateLimiter.canSend(notification.userId)) {
+      console.log(`rateLimiter: ${this.rateLimiter}`);
       throw new Error("Rate limit exceeded");
     }
 
