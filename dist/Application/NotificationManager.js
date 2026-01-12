@@ -8,9 +8,13 @@ class NotificationManager {
     }
     async send(notification) {
         if (!this.rateLimiter.canSend(notification.userId)) {
-            console.log(`rateLimiter: ${this.rateLimiter}`);
             throw new Error("Rate limit exceeded");
         }
+        console.log("[ENV]", {
+            RATE_LIMIT_MAX: process.env.RATE_LIMIT_MAX,
+            RATE_LIMIT_WINDOW: process.env.RATE_LIMIT_WINDOW,
+            SENDGRID_FAILURE_RATE: process.env.SENDGRID_FAILURE_RATE,
+        });
         for (const provider of this.providers) {
             try {
                 console.log(`Trying provider: ${provider.constructor.name}`);
