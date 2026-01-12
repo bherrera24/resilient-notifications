@@ -13,14 +13,6 @@ export class NotificationManager {
       throw new Error("Rate limit exceeded");
     }
 
-    // for (const provider of this.providers) {
-    //   try {
-    //     await provider.send(notification);
-    //     return;
-    //   } catch {
-    //     // intento con el siguiente proveedor
-    //   }
-    // }
     for (const provider of this.providers) {
       try {
         console.log(`Trying provider: ${provider.constructor.name}`);

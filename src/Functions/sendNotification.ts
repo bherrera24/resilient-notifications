@@ -1,12 +1,14 @@
-import { NotificationManager } from '../Application/NotificationManager';
-import { SendGridMockProvider } from '../Infrastructure/Providers/SendGridMockProvider';
-import { TwilioMockProvider } from '../Infrastructure/Providers/TwilioMockProvider';
-import { InMemoryRateLimiter } from '../Infrastructure/Services/InMemoryRateLimiter';
-import { NotificationType } from '../Domain/Entities/NotificationType';
+import { NotificationManager } from "../Application/NotificationManager";
+import { SendGridMockProvider } from "../Infrastructure/Providers/SendGridMockProvider";
+import { TwilioMockProvider } from "../Infrastructure/Providers/TwilioMockProvider";
+import { InMemoryRateLimiter } from "../Infrastructure/Services/InMemoryRateLimiter";
+import { NotificationType } from "../Domain/Entities/NotificationType";
 
+const rateLimitMax = Number(process.env.RATE_LIMIT_MAX ?? 2);
+const rateLimitWindow = Number(process.env.RATE_LIMIT_WINDOW ?? 10);
 const manager = new NotificationManager(
   [new SendGridMockProvider(), new TwilioMockProvider()],
-  new InMemoryRateLimiter(2, 10)
+  new InMemoryRateLimiter(rateLimitMax, rateLimitWindow)
 );
 
 export const handler = async (event: any) => {
@@ -20,6 +22,6 @@ export const handler = async (event: any) => {
 
   return {
     statusCode: 200,
-    body: JSON.stringify({ status: 'sent' }),
+    body: JSON.stringify({ status: "sent" }),
   };
 };
