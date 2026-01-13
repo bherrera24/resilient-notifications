@@ -8,6 +8,7 @@ import { InMemoryNotificationQueue } from "../Infrastructure/Queue/InMemoryNotif
 
 const rateLimitMax = Number(process.env.RATE_LIMIT_MAX ?? 2);
 const rateLimitWindow = Number(process.env.RATE_LIMIT_WINDOW ?? 10);
+
 const manager = new NotificationManager(
   [new SendGridMockProvider(), new TwilioMockProvider()],
   new InMemoryRateLimiter(rateLimitMax, rateLimitWindow),
@@ -16,13 +17,41 @@ const manager = new NotificationManager(
 );
 
 export const handler = async (event: any) => {
-  const body = JSON.parse(event.body);
+  if (!event.body) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: "Request body is required" }),
+    };
+  }
+  let data: {
+    userId: string;
+    message: string;
+    type: NotificationType;
+  };
 
-  await manager.send({
-    userId: body.userId,
-    message: body.message,
-    type: body.type as NotificationType,
+  try {
+    data = JSON.parse(event.body);
+  } catch {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: "Invalid JSON body" }),
+    };
+  }
+
+  if (!data.userId || !data.message || !data.type) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: "Missing required fields" }),
+    };
+  }
+
+  await manager.enqueue({
+    userId: data.userId,
+    message: data.message,
+    type: data.type,
   });
+
+  await manager.processQueue();
 
   return {
     statusCode: 200,
