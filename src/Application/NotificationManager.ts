@@ -4,6 +4,12 @@ import { Notification } from "../Domain/Entities/Notification";
 import { ICache } from "../Domain/Interfaces/ICache";
 import { INotificationQueue } from "../Domain/Interfaces/INotificationQueue";
 
+export type NotificationProcessResult =
+  | { message: string; type: string; status: "sent" }
+  | { message: string; type: string; status: "skipped_cache" }
+  | { message: string; type: string; status: "rate_limited" }
+  | { message: string; type: string; status: "failed"; reason: string };
+
 export class NotificationManager {
   private static readonly CACHE_TTL_SECONDS = 60;
   constructor(
@@ -17,18 +23,59 @@ export class NotificationManager {
     this.queue.enqueue(notification);
   }
 
-  async processQueue(): Promise<void> {
+  async processQueue(): Promise<NotificationProcessResult[]> {
+    const results: NotificationProcessResult[] = [];
+
     while (!this.queue.isEmpty()) {
       const notification = this.queue.dequeue();
       if (!notification) continue;
 
       try {
-        await this.send(notification);
-      } catch (error) {
+        if (this.isAlreadySent(notification)) {
+          results.push({
+            message: notification.message,
+            type: String(notification.type),
+            status: "skipped_cache",
+          });
+          continue;
+        }
+
+        try {
+          this.ensureRateLimit(notification);
+        } catch (e: any) {
+          if (String(e?.message).includes("Rate limit exceeded")) {
+            results.push({
+              message: notification.message,
+              type: String(notification.type),
+              status: "rate_limited",
+            });
+            continue;
+          }
+          throw e;
+        }
+
+        await this.trySendWithFailover(notification);
+        this.markAsSent(notification);
+
+        results.push({
+          message: notification.message,
+          type: String(notification.type),
+          status: "sent",
+        });
+      } catch (error: any) {
+        results.push({
+          message: notification.message,
+          type: String(notification.type),
+          status: "failed",
+          reason: String(error?.message ?? "unknown"),
+        });
         console.error("Failed to process notification", error);
       }
     }
+
+    return results;
   }
+
   private getCacheKey(notification: Notification): string {
     return `notification:${notification.userId}:${notification.message}`;
   }

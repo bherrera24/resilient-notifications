@@ -3,19 +3,25 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-   "test": "jest",
-    "build": "tsc"
+    "test": "jest",
+    "build": "tsc",
+    "dev:api": "ts-node src/local-server.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.0.6",
     "jest": "^30.2.0",
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1"
   }
 }

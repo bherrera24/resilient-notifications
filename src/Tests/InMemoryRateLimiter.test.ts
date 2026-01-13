@@ -1,4 +1,4 @@
-import { InMemoryRateLimiter } from "../Infrastructure/Services/InMemoryRateLimiter";
+import { InMemoryRateLimiter } from "../Infrastructure/RateLimiter/InMemoryRateLimiter";
 
 describe("InMemoryRateLimiter", () => {
   it("should allow messages within the limit", () => {

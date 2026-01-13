@@ -1,6 +1,6 @@
 import { NotificationManager } from "../Application/NotificationManager";
 import { INotificationProvider } from "../Domain/Interfaces/INotificationProvider";
-import { InMemoryRateLimiter } from "../Infrastructure/Services/InMemoryRateLimiter";
+import { InMemoryRateLimiter } from "../Infrastructure/RateLimiter/InMemoryRateLimiter";
 import { NotificationType } from "../Domain/Entities/NotificationType";
 import { InMemoryCache } from "../Infrastructure/Cache/InMemoryCache";
 import { InMemoryNotificationQueue } from "../Infrastructure/Queue/InMemoryNotificationQueue";
