@@ -4,13 +4,15 @@ import { TwilioMockProvider } from "../Infrastructure/Providers/TwilioMockProvid
 import { InMemoryRateLimiter } from "../Infrastructure/Services/InMemoryRateLimiter";
 import { NotificationType } from "../Domain/Entities/NotificationType";
 import { InMemoryCache } from "../Infrastructure/Cache/InMemoryCache";
+import { InMemoryNotificationQueue } from "../Infrastructure/Queue/InMemoryNotificationQueue";
 
 const rateLimitMax = Number(process.env.RATE_LIMIT_MAX ?? 2);
 const rateLimitWindow = Number(process.env.RATE_LIMIT_WINDOW ?? 10);
 const manager = new NotificationManager(
   [new SendGridMockProvider(), new TwilioMockProvider()],
   new InMemoryRateLimiter(rateLimitMax, rateLimitWindow),
-  new InMemoryCache()
+  new InMemoryCache(),
+  new InMemoryNotificationQueue()
 );
 
 export const handler = async (event: any) => {

@@ -2,38 +2,64 @@ import { INotificationProvider } from "../Domain/Interfaces/INotificationProvide
 import { IRateLimiter } from "../Domain/Interfaces/IRateLimiter";
 import { Notification } from "../Domain/Entities/Notification";
 import { ICache } from "../Domain/Interfaces/ICache";
+import { INotificationQueue } from "../Domain/Interfaces/INotificationQueue";
 
 export class NotificationManager {
+  private static readonly CACHE_TTL_SECONDS = 60;
   constructor(
     private readonly providers: INotificationProvider[],
     private readonly rateLimiter: IRateLimiter,
-    private readonly cache: ICache
+    private readonly cache: ICache,
+    private readonly queue: INotificationQueue
   ) {}
 
-  async send(notification: Notification): Promise<void> {
-    const cacheKey = `notification:${notification.userId}:${notification.message}`;
+  async enqueue(notification: Notification): Promise<void> {
+    this.queue.enqueue(notification);
+  }
 
-    // console.log("[ENV]", {
-    //   RATE_LIMIT_MAX: process.env.RATE_LIMIT_MAX,
-    //   RATE_LIMIT_WINDOW: process.env.RATE_LIMIT_WINDOW,
-    //   SENDGRID_FAILURE_RATE: process.env.SENDGRID_FAILURE_RATE,
-    // });
+  async processQueue(): Promise<void> {
+    while (!this.queue.isEmpty()) {
+      const notification = this.queue.dequeue();
+      if (!notification) continue;
 
+      try {
+        await this.send(notification);
+      } catch (error) {
+        console.error("Failed to process notification", error);
+      }
+    }
+  }
+  private getCacheKey(notification: Notification): string {
+    return `notification:${notification.userId}:${notification.message}`;
+  }
+
+  private markAsSent(notification: Notification): void {
+    const cacheKey = this.getCacheKey(notification);
+    this.cache.set(cacheKey, true, NotificationManager.CACHE_TTL_SECONDS);
+    console.log("[CACHE SET] Stored notification:", cacheKey);
+  }
+
+  private isAlreadySent(notification: Notification): boolean {
+    const cacheKey = this.getCacheKey(notification);
     const cached = this.cache.get<boolean>(cacheKey);
+
     if (cached) {
       console.log("[CACHE HIT] Notification already sent:", cacheKey);
-      return;
+      return true;
     }
 
+    return false;
+  }
+  private ensureRateLimit(notification: Notification): void {
     if (!this.rateLimiter.canSend(notification.userId)) {
       throw new Error("Rate limit exceeded");
     }
+  }
+  private async trySendWithFailover(notification: Notification): Promise<void> {
     for (const provider of this.providers) {
       try {
         console.log(`Trying provider: ${provider.constructor.name}`);
         await provider.send(notification);
-        this.cache.set(cacheKey, true, 60);
-        console.log("[CACHE SET] Stored notification:", cacheKey);
         console.log(`Success with ${provider.constructor.name}`);
         return;
       } catch (error) {
@@ -42,5 +68,15 @@ export class NotificationManager {
     }
 
     throw new Error("All providers failed");
+  }
+
+  async send(notification: Notification): Promise<void> {
+    if (this.isAlreadySent(notification)) return;
+
+    this.ensureRateLimit(notification);
+
+    await this.trySendWithFailover(notification);
+
+    this.markAsSent(notification);
   }
 }

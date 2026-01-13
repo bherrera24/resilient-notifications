@@ -2,32 +2,43 @@ import { NotificationManager } from "./Application/NotificationManager";
 import { SendGridMockProvider } from "./Infrastructure/Providers/SendGridMockProvider";
 import { TwilioMockProvider } from "./Infrastructure/Providers/TwilioMockProvider";
 import { InMemoryRateLimiter } from "./Infrastructure/Services/InMemoryRateLimiter";
-import { NotificationType } from "./Domain/Entities/NotificationType";
 import { InMemoryCache } from "./Infrastructure/Cache/InMemoryCache";
+import { InMemoryNotificationQueue } from "./Infrastructure/Queue/InMemoryNotificationQueue";
+import { NotificationType } from "./Domain/Entities/NotificationType";
 
 const manager = new NotificationManager(
   [new SendGridMockProvider(), new TwilioMockProvider()],
-  new InMemoryRateLimiter(2, 10),
-  new InMemoryCache()
+  new InMemoryRateLimiter(5, 60),
+  new InMemoryCache(),
+  new InMemoryNotificationQueue()
 );
 
-// (async () => {
-//   await manager.send({
-//     userId: "user1",
-//     message: "Test local",
-//     type: NotificationType.TRANSACTIONAL,
-//   });
-// })();
 (async () => {
-  const notification = {
+  console.log("=== First run ===");
+  await manager.enqueue({
     userId: "user1",
-    message: "Test local",
+    message: "Promo 20%",
+    type: NotificationType.MARKETING,
+  });
+  await manager.enqueue({
+    userId: "user1",
+    message: "Order confirmed",
     type: NotificationType.TRANSACTIONAL,
-  };
+  });
 
-  console.log("---- FIRST SEND ----");
-  await manager.send(notification);
+  await manager.processQueue();
 
-  console.log("---- SECOND SEND ----");
-  await manager.send(notification);
+  console.log("\n=== Second run (should hit cache) ===");
+  await manager.enqueue({
+    userId: "user1",
+    message: "Promo 20%",
+    type: NotificationType.MARKETING,
+  });
+  await manager.enqueue({
+    userId: "user1",
+    message: "Order confirmed",
+    type: NotificationType.TRANSACTIONAL,
+  });
+
+  await manager.processQueue();
 })();
