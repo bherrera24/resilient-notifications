@@ -6,8 +6,16 @@ import { NotificationType } from "../Domain/Entities/NotificationType";
 import { InMemoryCache } from "../Infrastructure/Cache/InMemoryCache";
 import { InMemoryNotificationQueue } from "../Infrastructure/Queue/InMemoryNotificationQueue";
 
-const rateLimitMax = Number(process.env.RATE_LIMIT_MAX ?? 2);
-const rateLimitWindow = Number(process.env.RATE_LIMIT_WINDOW ?? 10);
+console.log("[ENV CHECK] RATE_LIMIT_MAX =", process.env.RATE_LIMIT_MAX);
+console.log("[ENV CHECK] RATE_LIMIT_WINDOW =", process.env.RATE_LIMIT_WINDOW);
+console.log(
+  "[ENV CHECK] SENDGRID_FAILURE_RATE =",
+  process.env.SENDGRID_FAILURE_RATE
+);
+console.log("[ENV CHECK] FROM_NETLIFY =", process.env.NETLIFY);
+
+const rateLimitMax = Number(process.env.RATE_LIMIT_MAX ?? 1);
+const rateLimitWindow = Number(process.env.RATE_LIMIT_WINDOW ?? 1);
 
 const manager = new NotificationManager(
   [new SendGridMockProvider(), new TwilioMockProvider()],

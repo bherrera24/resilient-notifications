@@ -36,7 +36,11 @@ export class NotificationManager {
   private markAsSent(notification: Notification): void {
     const cacheKey = this.getCacheKey(notification);
     this.cache.set(cacheKey, true, NotificationManager.CACHE_TTL_SECONDS);
-    console.log("[CACHE SET] Stored notification:", cacheKey);
+    console.log(
+      "[CACHE SET] Stored notification:",
+      cacheKey,
+      notification.type
+    );
   }
 
   private isAlreadySent(notification: Notification): boolean {
