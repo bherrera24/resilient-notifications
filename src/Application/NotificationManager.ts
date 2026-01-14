@@ -77,9 +77,8 @@ export class NotificationManager {
   }
 
   private getCacheKey(notification: Notification): string {
-    return `notification:${notification.userId}:${notification.message}`;
+    return `notification:${notification.userId}:${notification.type}:${notification.message}`;
   }
-
   private markAsSent(notification: Notification): void {
     const cacheKey = this.getCacheKey(notification);
     this.cache.set(cacheKey, true, NotificationManager.CACHE_TTL_SECONDS);

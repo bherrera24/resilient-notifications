@@ -1,203 +1,119 @@
-Arquitectura de Notificaciones Resilientes
-📌 Descripción General
+# Notificationes Resilientes – Arquitectura
 
-Este proyecto implementa el núcleo de un motor de notificaciones resiliente, diseñado para funcionar in-memory, pero preparado para escalar a proveedores externos como Redis o bases de datos SQL sin modificar la lógica de negocio.
+Este proyecto implementa el núcleo de un **sistema de notificaciones resiliente con prioridad**, diseñado para ser simple en su implementación inicial (in-memory) pero preparado para escalar sin reescribir la lógica central.
 
-El sistema soporta:
+La arquitectura sigue un enfoque de **Ports & Adapters (arquitectura hexagonal)**: el core de negocio no depende de detalles de infraestructura, sino de interfaces. Las implementaciones concretas pueden cambiar sin afectar el comportamiento del sistema.
 
-Múltiples proveedores de notificación
+---
 
-Failover automático
+## Principios de diseño
 
-Rate limiting por usuario
+- Prioridad de notificaciones (**TRANSACTIONAL** sobre **MARKETING**)
+- Resiliencia ante fallos de proveedores (failover)
+- Rate limiting por usuario
+- Componentes desacoplados mediante interfaces
+- Preparado para escalar cambiando implementaciones (ej. Redis, colas externas)
 
-Priorización de mensajes
+---
 
-Cache con TTL
+## Open/Closed: ¿Cómo agregas un nuevo canal (ej. WhatsApp)?
 
-Arquitectura extensible y desacoplada
+El principio **Open/Closed** se garantiza porque el sistema no depende de proveedores concretos para el envío de notificaciones, sino de una abstracción común.
 
-🧱 Arquitectura General
+El `NotificationManager` orquesta el envío utilizando una lista de proveedores que implementan la misma interfaz. Para agregar un nuevo canal, como WhatsApp:
 
-El diseño sigue principios de Clean Architecture y SOLID, separando claramente:
+1. Se crea un nuevo adaptador (por ejemplo `WhatsAppProvider`) que implemente la interfaz de proveedor.
+2. Se registra ese nuevo proveedor al inicializar el `NotificationManager`.
 
-Domain: contratos y reglas de negocio
+No es necesario modificar la lógica del core.  
+La prioridad, el rate limiting y el failover permanecen intactos.
 
-Application: orquestación del flujo
+---
 
-Infrastructure: implementaciones concretas (providers, cache, rate limiter)
+## Concurrencia: ¿Qué pasa si dos procesos notifican al mismo usuario al mismo tiempo?
 
-Las dependencias siempre apuntan hacia abstracciones, no implementaciones concretas.
+Si dos procesos/instancias intentan notificar al mismo usuario al mismo tiempo:
 
-🔌 ¿Cómo se garantiza el principio Open/Closed?
+- En la versión **in-memory**, **no hay coordinación entre procesos**, porque **cada proceso tiene su propia memoria**. Esto significa que **no se puede garantizar globalmente** ni el **rate limit** ni la **deduplicación** entre instancias.
 
-El sistema garantiza el principio Open/Closed (abierto para extensión, cerrado para modificación) mediante el uso del Strategy Pattern.
+- Para manejarlo correctamente en producción, el estado que debe ser consistente se mueve a un componente **compartido y atómico**:
+  1. **Rate limiting distribuido**: reemplazar `InMemoryRateLimiter` por un `RedisRateLimiter` (o similar), donde todas las instancias consultan y actualizan el mismo contador o ventana mediante operaciones atómicas.
+  2. **Idempotencia / deduplicación**: reemplazar `InMemoryCache` por Redis utilizando una operación atómica, de modo que solo una instancia "gane" el derecho a enviar la notificación.
+  3. **Cola externa**: usar un broker como SQS, RabbitMQ o Kafka para centralizar el consumo y evitar que dos procesos procesen el mismo evento.
 
-🔹 Ejemplo: Agregar un nuevo canal (WhatsApp)
+**Resultado:** aunque dos procesos reciban el evento al mismo tiempo, **solo uno envía** y el rate limit se respeta **globalmente**, sin modificar la lógica del core, únicamente cambiando las implementaciones de infraestructura.
 
-Se crea una nueva implementación de la interfaz INotificationProvider:
+---
 
-class WhatsAppProvider implements INotificationProvider {
-async send(notification: Notification): Promise<void> {
-// lógica de envío
-}
-}
+## Cómo ejecutar el proyecto
 
-El nuevo provider se inyecta en el NotificationManager:
+### Requisitos
 
-new NotificationManager(
-[new SendGridProvider(), new WhatsAppProvider()],
-rateLimiter,
-cache
-);
+- Node.js **>= 18**
+- npm
 
-✅ Resultado
+---
 
-No se modifica el NotificationManager
+### Instalación
 
-No se altera la lógica de negocio
+```bash
+npm install
+```
 
-No se rompen dependencias existentes
+## Configuración de entorno
 
-Esto permite agregar nuevos canales (Email, SMS, WhatsApp, Push, etc.) sin tocar el core del sistema.
-//
-🧩 Cumplimiento de Principios SOLID
-S — Single Responsibility Principle (SRP)
+### Crea un archivo .env en la raíz del proyecto:
 
-Cada clase tiene una única responsabilidad:
+```
+PORT=3000
+RATE_LIMIT_MAX=5
+RATE_LIMIT_WINDOW=10
+SENDGRID_FAILURE_RATE=0.5
+```
 
-NotificationManager: orquesta el flujo de envío (rate limit, cache, failover).
+## Levantar la API en local
 
-SendGridMockProvider, TwilioMockProvider: encapsulan la lógica de envío de cada proveedor.
+`npm run dev:api`
 
-InMemoryRateLimiter: controla el rate limiting por usuario.
+### Salida esperada:
 
-InMemoryCache: gestiona almacenamiento temporal y expiración (TTL).
+`Local API running on http://localhost:3000`
 
-Esto permite modificar o extender cada componente sin afectar a los demás.
+## Probar el endpoint
 
-O — Open/Closed Principle (OCP)
+### Envío simple
 
-El sistema está abierto a extensión y cerrado a modificación.
+curl -X POST http://localhost:3000/sendNotification \
+ -H "Content-Type: application/json" \
+ -d '{"userId":"user1","message":"hello","type":"TRANSACTIONAL"}'
 
-Nuevos canales de notificación se agregan implementando INotificationProvider.
+### Batch con prioridad
 
-Nuevas estrategias de cache o rate limiting se agregan implementando ICache o IRateLimiter.
+```
+curl -X POST http://localhost:3000/sendNotification \
+ -H "Content-Type: application/json" \
+ -d '[
+{"userId":"user1","message":"mkt-1","type":"MARKETING"},
+{"userId":"user1","message":"tx-1","type":"TRANSACTIONAL"},
+{"userId":"user1","message":"mkt-2","type":"MARKETING"}
+]'
+```
 
-El core (NotificationManager) no necesita cambios para soportar nuevas funcionalidades.
+### La respuesta incluye un resumen por notificación (sent, rate_limited, skipped_cache, failed).
 
-L — Liskov Substitution Principle (LSP)
+**Cómo correr los tests**
 
-Todas las implementaciones pueden sustituirse por sus interfaces sin alterar el comportamiento del sistema.
+El proyecto incluye tests unitarios para validar componentes clave como el rate limiter.
 
-Cualquier implementación de INotificationProvider puede reemplazar a otra.
+Ejecutar todos los tests
+`npm test` o, dependiendo del setup:
 
-InMemoryCache puede ser reemplazado por RedisCache.
+`npm run test`
 
-InMemoryRateLimiter puede ser reemplazado por una versión distribuida.
+**Qué validan los tests**
 
-El sistema funciona correctamente independientemente de la implementación concreta.
+- Comportamiento del Rate Limiter
 
-I — Interface Segregation Principle (ISP)
+- Permite envíos dentro del límite
 
-Las interfaces están específicamente definidas y no fuerzan dependencias innecesarias:
-
-INotificationProvider expone solo el método send.
-
-ICache expone únicamente operaciones de cache.
-
-IRateLimiter se enfoca solo en control de envíos.
-
-Esto mantiene las implementaciones simples y cohesionadas.
-
-D — Dependency Inversion Principle (DIP)
-
-El core del sistema depende de abstracciones, no de implementaciones concretas.
-
-NotificationManager depende de INotificationProvider, IRateLimiter y ICache.
-
-Las implementaciones concretas se inyectan desde el entry point.
-
-Esto permite:
-
-cambiar infraestructura sin afectar la lógica
-
-facilitar testing
-
-escalar a Redis u otros servicios externos
-//
-🔁 ¿Cómo se maneja la concurrencia?
-Problema
-
-¿Qué ocurre si dos procesos intentan notificar al mismo usuario al mismo tiempo?
-
-Solución
-
-Rate Limiting por usuario
-Antes de enviar una notificación, el sistema valida si el usuario puede recibir mensajes dentro de una ventana de tiempo configurable.
-
-Cache con TTL (Time To Live)
-Se utiliza un servicio de cache (ICache) para evitar envíos duplicados:
-
-Si una notificación ya fue enviada recientemente, se bloquea el reenvío.
-
-El TTL garantiza expiración automática del estado.
-
-Diseño escalable
-
-En entornos locales se usa InMemoryCache
-
-En producción, la misma interfaz permite reemplazarlo por Redis, habilitando:
-
-locks distribuidos
-
-atomicidad
-
-consistencia entre procesos
-
-📌 Nota sobre entornos serverless
-
-En plataformas como Netlify Functions, el cache in-memory no persiste entre invocaciones.
-Este comportamiento es esperado y justifica el uso de Redis en escenarios reales.
-
-🧪 Testing
-
-El proyecto incluye tests unitarios que validan:
-
-Rate limiting por usuario
-
-Failover entre proveedores
-
-Expiración de cache por TTL
-
-Evita envíos duplicados
-
-Los tests prueban comportamiento, no implementación, asegurando estabilidad ante cambios futuros.
-
-🚀 Escalabilidad
-
-Gracias al uso de interfaces (INotificationProvider, IRateLimiter, ICache), el sistema puede evolucionar fácilmente hacia:
-
-Redis para cache distribuido
-
-Bases de datos SQL para persistencia
-
-Nuevos canales de comunicación
-
-Ejecución en entornos distribuidos
-
-Todo esto sin modificar la lógica central.
-
-✅ Conclusión
-
-Este diseño prioriza:
-
-Extensibilidad
-
-Resiliencia
-
-Claridad de responsabilidades
-
-Preparación para producción
-
-El núcleo del sistema permanece estable mientras las capacidades del sistema pueden crecer de forma controlada.
+- Bloquea envíos cuando se excede la ventana
